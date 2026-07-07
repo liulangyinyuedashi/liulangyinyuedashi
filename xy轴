@@ -1,0 +1,272 @@
+#include <EEPROM.h>
+#define xstepin 2
+#define xdirc 3
+#define ystepin 5
+#define ydirc 6
+
+#define leftlimit 8
+#define rightlimit 10
+#define uplimit 11
+#define downlimit 13
+
+#define ox 9
+#define oy 12
+
+float stepsPerMM = 20.0;
+int pulseDelay = 2000;
+
+int rightcount=0;
+int leftcount=0;
+int upcount=0;
+int downcount=0;
+int oxcount=0;
+int oycount=0;
+
+float xcurrentPosition = 0.0;
+float ycurrentPosition = 0.0;
+
+void setup() {
+  pinMode(xstepin, OUTPUT);
+  pinMode(xdirc, OUTPUT);
+  pinMode(ystepin,OUTPUT);
+  pinMode(ydirc,OUTPUT);
+  pinMode(leftlimit, INPUT);
+  pinMode(rightlimit, INPUT);
+  pinMode(uplimit, INPUT);
+  pinMode(downlimit, INPUT);
+  pinMode(ox, INPUT);
+  pinMode(oy, INPUT);
+  Serial.begin(9600);
+  EEPROM.get(0, xcurrentPosition);
+  EEPROM.get(4, ycurrentPosition);
+  Serial.print("当前位置: (");
+  Serial.print(xcurrentPosition);
+  Serial.print(",");
+  Serial.print(ycurrentPosition);
+  Serial.println(")");
+  Serial.println("输入目标坐标：");
+  Serial.println("范围x:350y:±150右和上为正");
+}
+bool xmove(int xsteps);
+bool ymove(int ysteps);
+void xhome();
+void yhome();
+
+void loop() {
+  if (Serial.available() > 0) {
+    String s = Serial.readStringUntil('\n');
+    if(s=="HL"){
+      xhome();
+      yhome();
+      EEPROM.put(0, xcurrentPosition);
+      EEPROM.put(4, ycurrentPosition);  
+      Serial.print("当前位置: (");
+      Serial.print(xcurrentPosition);
+      Serial.print(',');
+      Serial.print(ycurrentPosition);
+      Serial.println(")");
+    }   
+    else{   
+    int douhaodizhi= s.indexOf(',');
+    String xzuobiao=s.substring(1,douhaodizhi);
+    String yzuobiao=s.substring(douhaodizhi+1,s.length()-1);
+    float xtargetPosition = xzuobiao.toFloat();  
+    float ytargetPosition = yzuobiao.toFloat();
+
+    float xmoveDistance = xtargetPosition - xcurrentPosition;
+    int xsteps = xmoveDistance * stepsPerMM;
+    float ymoveDistance = ytargetPosition - ycurrentPosition;
+    int ysteps = ymoveDistance * stepsPerMM;
+    Serial.print("目标位置: (");
+    Serial.print(xtargetPosition);
+    Serial.print(','); 
+    Serial.print(ytargetPosition);
+    Serial.println(")");
+    bool x=xmove(xsteps);
+    bool y=ymove(ysteps);
+    if(x&&y){
+    xcurrentPosition = xtargetPosition;
+    ycurrentPosition = ytargetPosition;
+    EEPROM.put(0, xcurrentPosition);
+    EEPROM.put(4, ycurrentPosition);  
+    Serial.print("当前位置: (");
+    Serial.print(xcurrentPosition);
+    Serial.print(',');
+    Serial.print(ycurrentPosition);
+    Serial.println(")");
+    }
+  }
+ }
+ }  
+bool xmove(int xsteps) {
+  Serial.println("enter xmove");
+  if (xsteps >= 0) {
+    digitalWrite(xdirc, HIGH);
+  }
+  else {
+    digitalWrite(xdirc, LOW);
+    xsteps = -xsteps;
+  }
+
+  for (int i = 0; i < xsteps; i++){
+  if (digitalRead(leftlimit) == LOW) {
+    leftcount++;}
+    else {
+      leftcount=0;
+    }
+  if (leftcount > 20) {
+    Serial.println("左极限请回零");
+    leftcount=0;
+    return 0;
+  }
+ if (digitalRead(rightlimit) == LOW) {
+     rightcount++;}
+     else{
+      rightcount=0;
+     }
+  if (rightcount > 20) {
+    Serial.println("右极限请回零");
+    rightcount=0;
+    return 0;
+  }
+  digitalWrite(xstepin, HIGH);
+  delayMicroseconds(pulseDelay);
+  digitalWrite(xstepin, LOW);
+  delayMicroseconds(pulseDelay);
+}
+  return 1;
+}
+
+bool ymove(int ysteps) {
+if (ysteps >= 0) {
+  digitalWrite(ydirc, HIGH);
+}
+else {
+  digitalWrite(ydirc, LOW);
+  ysteps = -ysteps;
+}
+for (int i = 0; i < ysteps; i++) {
+  if (digitalRead(uplimit) == LOW) {
+  upcount++;}
+  else {
+  upcount=0;
+}
+if (upcount > 20) {
+  Serial.println("上极限请回零");
+  upcount=0;
+  return 0;
+}
+if (digitalRead(downlimit) == LOW) {
+ downcount++;}
+ else{
+ downcount=0;
+}
+if (downcount > 20) {
+  Serial.println("下极限请回零");
+  downcount=0;
+  return 0;
+}
+  digitalWrite(ystepin, HIGH);
+  delayMicroseconds(pulseDelay);
+  digitalWrite(ystepin, LOW);
+  delayMicroseconds(pulseDelay);
+}
+  return 1;
+}
+  void xhome()
+  {
+   if (xcurrentPosition >= 0) 
+  {
+    digitalWrite(xdirc, LOW);
+  }
+  else 
+  {
+    digitalWrite(xdirc, HIGH);
+  }
+  while(true) {
+    if (digitalRead(ox)==LOW)
+    {
+      oxcount++;
+    }
+    else oxcount=0;
+    if (oxcount > 20){
+      Serial.println("ox");
+      xcurrentPosition=0;
+      oxcount=0;
+      break;
+    }
+    if (digitalRead(leftlimit)==LOW )
+    {
+      leftcount++;
+    }
+    else leftcount=0;
+    if (leftcount>20){
+      Serial.println("左极限");
+      digitalWrite(xdirc, HIGH); 
+      leftcount=0;
+    }
+     if (digitalRead(rightlimit)==LOW )
+     {
+      rightcount++;
+     }
+    else rightcount=0;
+    if (rightcount > 20){
+      Serial.println("右极限");
+      digitalWrite(xdirc, LOW); 
+      rightcount=0;
+    }
+    digitalWrite(xstepin, HIGH);
+    delayMicroseconds(pulseDelay);
+    digitalWrite(xstepin, LOW);
+    delayMicroseconds(pulseDelay);
+    }
+   }
+
+  void yhome()
+  {
+   if (ycurrentPosition >= 0) 
+  {
+    digitalWrite(ydirc, LOW);
+  }
+  else 
+  {
+    digitalWrite(ydirc, HIGH);
+  }
+  while(true) {
+    if (digitalRead(oy)==LOW)
+    {
+      oycount++;
+    }
+    else oycount=0;
+    if (oycount > 20){
+      Serial.println("oy");
+      ycurrentPosition=0;
+      oycount=0;
+      break;
+    }
+    if (digitalRead(uplimit)==LOW )
+    {
+      upcount++;
+    }
+    else upcount=0;
+    if (upcount>20){
+      Serial.println("上极限");
+      digitalWrite(ydirc, LOW); 
+      upcount=0;
+    }
+     if (digitalRead(downlimit)==LOW )
+     {
+      downcount++;
+     }
+    else downcount=0;
+    if (downcount > 20){
+      Serial.println("下极限");
+      digitalWrite(ydirc, HIGH); 
+      downcount=0;
+    }
+    digitalWrite(ystepin, HIGH);
+    delayMicroseconds(pulseDelay);
+    digitalWrite(ystepin, LOW);
+    delayMicroseconds(pulseDelay);
+    }
+   }
