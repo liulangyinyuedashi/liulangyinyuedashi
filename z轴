@@ -1,0 +1,136 @@
+//z轴运动
+#include <EEPROM.h>
+#define stepin 2
+#define stepdir 3
+
+#define  uplimit 5
+#define  oanddownlimit 7
+
+
+float stepspermm=160;
+int pulsedelay=2000;
+
+int upcount=0;
+int ocount=0;
+
+float currentposition=0.0;
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(stepin,OUTPUT);
+  pinMode(stepdir,OUTPUT);
+
+  pinMode(uplimit,INPUT_PULLUP);
+  pinMode(oanddownlimit,INPUT_PULLUP);
+
+  Serial.begin(9600);
+  
+  EEPROM.get(0,currentposition);
+
+  Serial.print(currentposition);
+  Serial.println("输入目标高度：");
+}
+
+bool move(long steps);
+void home();
+
+void loop() 
+{
+  // put your main code here, to run repeatedly:
+  if (Serial.available() > 0)
+  {
+    String s = Serial.readStringUntil('\n');
+    if (s=="HL")
+    {
+      home();
+      EEPROM.put(0, currentposition);
+    }
+    else
+    {
+      float targetposition = s.toFloat();
+      float movedistance = targetposition - currentposition;
+      long steps = movedistance * stepspermm;
+
+      Serial.print("目标位置");
+      Serial.print(targetposition);
+
+      bool m= move(steps);
+      if(m){   
+      currentposition=targetposition;
+      EEPROM.put(0, currentposition);
+      Serial.print("当前位置:");
+      Serial.print(currentposition);
+      }
+    }
+    }
+  }
+bool move(long steps)
+{
+   Serial.println("enter move");
+   bool moveup=steps>=0;
+  if (steps >= 0) {
+    digitalWrite(stepdir, HIGH);
+  }
+  else {
+    digitalWrite(stepdir, LOW);
+    steps = -steps;
+  }
+
+  for (long i = 0; i < steps; i++){
+  if(moveup){
+  if (digitalRead(uplimit) == LOW) 
+   {
+    upcount++;
+    }
+    else 
+    {
+    upcount=0;
+    }
+  if (upcount >= 20) {
+    Serial.println("z轴上极限请回零");
+    upcount=0;
+    return 0;
+  }}
+  else{
+ if (digitalRead(oanddownlimit) == LOW) {
+     ocount++;}
+     else{
+    ocount=0;
+     }
+  if (ocount >= 20) {
+    Serial.println("到达零点");
+    ocount=0;
+    currentposition=0;
+    EEPROM.put(0, currentposition);
+    Serial.print("当前位置:");
+    Serial.print(currentposition);
+    return 0;
+  }}
+  digitalWrite(stepin, HIGH);
+  delayMicroseconds(pulsedelay);
+  digitalWrite(stepin, LOW);
+  delayMicroseconds(pulsedelay);
+}
+return 1;
+}
+void home()
+{
+digitalWrite(stepdir, LOW);
+while(true) {
+    if (digitalRead(oanddownlimit)==LOW)
+    {
+      ocount++;
+    }
+    else ocount=0;
+    if (ocount >= 20){
+      Serial.println("零点");
+      currentposition=0;
+      ocount=0;
+      break;
+    }
+    digitalWrite(stepin, HIGH);
+    delayMicroseconds(pulsedelay);
+    digitalWrite(stepin, LOW);
+    delayMicroseconds(pulsedelay);
+}
+}
